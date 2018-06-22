@@ -24,7 +24,9 @@
   "homepage": "https://github.com/badunk/multer-s3#readme",
   "dependencies": {
     "file-type": "^3.3.0",
+    "image-size": "^0.6.3",
     "run-parallel": "^1.1.6"
+    "stream-to-array": "^2.3.0"
   },
   "devDependencies": {
     "aws-sdk": "^2.2.32",
