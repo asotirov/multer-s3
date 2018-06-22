@@ -20,6 +20,7 @@ var defaultContentDisposition = staticValue(null)
 var defaultStorageClass = staticValue('STANDARD')
 var defaultSSE = staticValue(null)
 var defaultSSEKMS = staticValue(null)
+var defaultDimensions = staticValue(null)
 
 function defaultKey (req, file, cb) {
   crypto.randomBytes(16, function (err, raw) {
@@ -50,7 +51,8 @@ function collect (storage, req, file, cb) {
     storage.getContentDisposition.bind(storage, req, file),
     storage.getStorageClass.bind(storage, req, file),
     storage.getSSE.bind(storage, req, file),
-    storage.getSSEKMS.bind(storage, req, file)
+    storage.getSSEKMS.bind(storage, req, file),
+    storage.getCalculateDimensions.bind(storage, req, file)
   ], function (err, values) {
     if (err) return cb(err)
 
@@ -68,7 +70,8 @@ function collect (storage, req, file, cb) {
         contentType: contentType,
         replacementStream: replacementStream,
         serverSideEncryption: values[7],
-        sseKmsKeyId: values[8]
+        sseKmsKeyId: values[8],
+        calculateDimensions: values[9]
       })
     })
   })
@@ -146,6 +149,13 @@ function S3Storage (opts) {
     case 'undefined': this.getSSEKMS = defaultSSEKMS; break
     default: throw new TypeError('Expected opts.sseKmsKeyId to be undefined, string, or function')
   }
+
+  switch(typeof opts.calculateDimensions) {
+      case 'function': this.getCalculateDimensions = opts.calculateDimensions; break
+      case 'boolean': this.getCalculateDimensions = staticValue(opts.calculateDimensions); break
+      case 'undefined': this.getCalculateDimensions = defaultDimensions; break
+      default: throw new TypeError('Expected opts.calculateDimensions to be undefined, boolean, or function')
+  }
 }
 
 S3Storage.prototype._handleFile = function (req, file, cb) {
@@ -166,19 +176,20 @@ S3Storage.prototype._handleFile = function (req, file, cb) {
       SSEKMSKeyId: opts.sseKmsKeyId,
       Body: (opts.replacementStream || file.stream)
     }
+    var dimensions = undefined;
+    if(opts.calculateDimensions) {
+        var outStream = new stream.PassThrough();
 
-    var outStream = new stream.PassThrough();
-
-    file.stream.pipe(outStream);
-    var dimmensions;
-    toArray(outStream)
-        .then(function (parts) {
-            var buffers = parts
-                .map(part => Buffer.isBuffer(part) ? part : Buffer.from(part));
-            return Buffer.concat(buffers);
-        }).then((buffer) => {
-        dimmensions = sizeOf(buffer);
-    });
+        file.stream.pipe(outStream);
+        toArray(outStream)
+            .then(function (parts) {
+                var buffers = parts
+                    .map(part => Buffer.isBuffer(part) ? part : Buffer.from(part));
+                return Buffer.concat(buffers);
+            }).then((buffer) => {
+            dimensions = sizeOf(buffer);
+        });
+    }
 
     if (opts.contentDisposition) {
       params.ContentDisposition = opts.contentDisposition
@@ -194,7 +205,7 @@ S3Storage.prototype._handleFile = function (req, file, cb) {
       if (err) return cb(err)
 
       cb(null, {
-        dimmensions: dimmensions,
+        dimensions: dimensions,
         size: currentSize,
         bucket: opts.bucket,
         key: opts.key,
