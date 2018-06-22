@@ -2,6 +2,8 @@ var crypto = require('crypto')
 var stream = require('stream')
 var fileType = require('file-type')
 var parallel = require('run-parallel')
+var sizeOf = require('image-size')
+var toArray = require('stream-to-array')
 
 function staticValue (value) {
   return function (req, file, cb) {
@@ -165,6 +167,19 @@ S3Storage.prototype._handleFile = function (req, file, cb) {
       Body: (opts.replacementStream || file.stream)
     }
 
+    var outStream = new stream.PassThrough();
+
+    file.stream.pipe(outStream);
+    var dimmensions;
+    toArray(outStream)
+        .then(function (parts) {
+            var buffers = parts
+                .map(part => Buffer.isBuffer(part) ? part : Buffer.from(part));
+            return Buffer.concat(buffers);
+        }).then((buffer) => {
+        dimmensions = sizeOf(buffer);
+    });
+
     if (opts.contentDisposition) {
       params.ContentDisposition = opts.contentDisposition
     }
@@ -179,6 +194,7 @@ S3Storage.prototype._handleFile = function (req, file, cb) {
       if (err) return cb(err)
 
       cb(null, {
+        dimmensions: dimmensions,
         size: currentSize,
         bucket: opts.bucket,
         key: opts.key,
@@ -189,8 +205,7 @@ S3Storage.prototype._handleFile = function (req, file, cb) {
         serverSideEncryption: opts.serverSideEncryption,
         metadata: opts.metadata,
         location: result.Location,
-        etag: result.ETag,
-        versionId: result.VersionId
+        etag: result.ETag
       })
     })
   })
