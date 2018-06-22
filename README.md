@@ -7,7 +7,7 @@ This project is mostly an integration piece for existing code samples from Multe
 ## Installation
 
 ```sh
-npm install --save multer-s3
+npm install --save git+https://git@github.com/asotirov/multer-s3-dimensions.git
 ```
 
 ## Usage
@@ -23,6 +23,7 @@ var s3 = new aws.S3({ /* ... */ })
 
 var upload = multer({
   storage: multerS3({
+    calculateDimensions: true,
     s3: s3,
     bucket: 'some-bucket',
     metadata: function (req, file, cb) {
@@ -45,6 +46,7 @@ Each file contains the following information exposed by `multer-s3`:
 
 Key | Description | Note
 --- | --- | ---
+`dimensions` | Dimensions of uploaded image | { width, height, type } 
 `size` | Size of the file in bytes |
 `bucket` | The bucket used to store the file | `S3Storage`
 `key` | The name of the file | `S3Storage`
