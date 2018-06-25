@@ -164,6 +164,24 @@ S3Storage.prototype._handleFile = function (req, file, cb) {
 
     var currentSize = 0
 
+    var dimensions = undefined;
+    var bodyStream = opts.replacementStream || file.stream;
+    if(opts.calculateDimensions) {
+      var dimmensionStream = new stream.PassThrough();
+      bodyStream.pipe(dimmensionStream);
+        dimmensionStream.on('end', (data) => {
+        toArray(dimmensionStream)
+          .then(function (parts) {
+            var buffers = parts
+              .map(part => Buffer.isBuffer(part) ? part : Buffer.from(part));
+            return Buffer.concat(buffers);
+          })
+          .then((buffer) => {
+            dimensions = sizeOf(buffer);
+          });
+        });
+    }
+
     var params = {
       Bucket: opts.bucket,
       Key: opts.key,
@@ -174,21 +192,7 @@ S3Storage.prototype._handleFile = function (req, file, cb) {
       StorageClass: opts.storageClass,
       ServerSideEncryption: opts.serverSideEncryption,
       SSEKMSKeyId: opts.sseKmsKeyId,
-      Body: (opts.replacementStream || file.stream)
-    }
-    var dimensions = undefined;
-    if(opts.calculateDimensions) {
-        var outStream = new stream.PassThrough();
-
-        file.stream.pipe(outStream);
-        toArray(outStream)
-            .then(function (parts) {
-                var buffers = parts
-                    .map(part => Buffer.isBuffer(part) ? part : Buffer.from(part));
-                return Buffer.concat(buffers);
-            }).then((buffer) => {
-            dimensions = sizeOf(buffer);
-        });
+      Body: bodyStream
     }
 
     if (opts.contentDisposition) {
